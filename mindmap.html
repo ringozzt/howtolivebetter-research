@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HowToLiveBetter 思维导图</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; background:#f7f5ef; color:#2b2b2b; }
+  header { padding:28px 32px 12px; }
+  header h1 { font-size:22px; letter-spacing:.5px; }
+  header p { margin-top:6px; font-size:13px; color:#8a8578; }
+  header p a { color:#3451b2; text-decoration:none; }
+  .toolbar { padding:0 32px 12px; display:flex; gap:8px; }
+  .toolbar button { border:1px solid #d8d2c2; background:#fff; border-radius:8px; padding:6px 14px; font-size:13px; cursor:pointer; }
+  .toolbar button:hover { background:#efeadd; }
+  #wrap { overflow:auto; padding:0 16px 60px; }
+  svg text { font-size:13px; fill:#2b2b2b; }
+  .node { cursor:pointer; }
+  .node rect { stroke-width:1.5; }
+  .node:hover rect { filter:brightness(.95); }
+  .toggle { font-size:11px; fill:#fff; font-weight:700; pointer-events:none; }
+  .link { fill:none; stroke-width:1.5; opacity:.55; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧠 HowToLiveBetter 思维导图</h1>
+  <p>对 <a href="https://github.com/eternity4719/HowToLiveBetter">eternity4719/HowToLiveBetter</a> 的结构拆解 · 点击节点可折叠 / 展开</p>
+</header>
+<div class="toolbar">
+  <button id="expandAll">全部展开</button>
+  <button id="collapseAll">全部折叠到第二层</button>
+</div>
+<div id="wrap"><svg id="map"></svg></div>
+<script>
+const COLORS = ["#e15759","#f28e2b","#edc948","#59a14f","#76b7b2","#4e79a7","#b07aa1","#9c755f"];
+const DATA = { name:"HowToLiveBetter\n高性价比人生指南", children:[
+  { name:"内容体系 · 33章612条", children:[
+    { name:"活得更久", children:["01 不要早死","02 不要慢慢死","13 紧急情况","16 慢性病之后","24 看病","28 别搞坏身体","29 重大打击之后"]},
+    { name:"钱", children:["05 不要浪费钱","06 反面清单","07 没钱怎么活","12 创业做生意","15 租房买房","19 在职离职工伤"]},
+    { name:"法律与人身自由", children:["08 别把自己搭进去","09 法律红线","11 程序员红线","14 账号信息安全","26 做网站平台"]},
+    { name:"时间与精力", children:["03 不要浪费精力","04 不要浪费时间","22 怎么放松","23 学什么技能"]},
+    { name:"人生大事", children:["10 恋爱结婚","17 家里有老人","18 养孩子","20 新生儿","25 人走之后","27 怀孕生产","30 上学孩子","33 残疾之后"]},
+    { name:"出发与远方", children:["21 出国旅行","31 十八岁之后","32 出国留学"]}
+  ]},
+  { name:"方法论", children:[
+    { name:"条目六件套", children:["成本","说人话","收益","证据等级","来源","备注"]},
+    { name:"机器可读标签", children:["钱 / 时间 / 毅力","收益量级","口径：寿命·钱·时间·自由"]},
+    { name:"证据分级", children:["A 413条：荟萃分析/RCT","B 150条","C 49条","争议56 · 待核实35"]},
+    { name:"性价比档", children:["极高 104条：零成本大收益","高 277条","一般 231条"]},
+    { name:"四种口径互不折算", children:["寿命","时间精力","金钱","人身自由"]},
+    { name:"受益分档", children:["自己","配偶直系亲属","朋友同事","陌生人"]}
+  ]},
+  { name:"工程实现", children:[
+    { name:"纯静态零后端", children:["index.html + book/*.md","python -m http.server 即跑","GitHub Pages 直接托管"]},
+    { name:"在线检索页", children:["关键词 / 章节筛选","证据等级 / 成本三维筛选","条目互链悬停预览"]},
+    { name:"CI 自动构建", children:["PDF / EPUB / 离线HTML","正文改动自动进 Release"]},
+    { name:"AI Skill", children:["skills/life-decision-guide","先查条目再回答","查不到就说查不到"]},
+    { name:"核实记录", children:["docs/核实记录/","1294 条原始文献链接"]},
+    { name:"协作机制", children:["Issue 模板：纠错","Issue 模板：新内容","AGENTS.md / CLAUDE.md"]}
+  ]},
+  { name:"生态与传播", children:["Unlicense 公有领域","非官方翻译 en / ru / es","三周两万 star","README 广告位变现"]}
+]};
+// normalize: strings -> {name}
+(function norm(n){ n.children=(n.children||[]).map(c=>{ if(typeof c==="string") c={name:c}; norm(c); return c; }); })(DATA);
+
+const svg = document.getElementById("map");
+const NS = "http://www.w3.org/2000/svg";
+const DX = 210, LEAF_H = 34, M = 30;
+const ctx = document.createElement("canvas").getContext("2d");
+ctx.font = "13px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif";
+function textW(s){ return Math.max(...s.split("\n").map(l=>ctx.measureText(l).width)); }
+
+function kids(n){ return n.collapsed ? [] : (n.children||[]); }
+function layout(n, depth, st){
+  n.depth = depth; n.x = M + depth*DX;
+  const k = kids(n);
+  if(!k.length){ n.y = st.y; st.y += LEAF_H; n.leaf = true; }
+  else { n.leaf=false; k.forEach(c=>layout(c,depth+1,st)); n.y=(k[0].y+k[k.length-1].y)/2; }
+}
+function countLeaves(n){ const k=kids(n); return k.length? k.reduce((a,c)=>a+countLeaves(c),0):1; }
+function el(tag, attrs){ const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+
+function render(){
+  svg.innerHTML="";
+  const st={y:M}; layout(DATA,0,st);
+  const H = st.y + M, W = M*2 + 4*DX + 120;
+  svg.setAttribute("width",W); svg.setAttribute("height",H); svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  // assign branch colors
+  DATA.children.forEach((b,i)=>{ b.color=COLORS[i%COLORS.length]; (function paint(n){ n.color=b.color; (n.children||[]).forEach(paint); })(b); });
+  DATA.color="#2b2b2b";
+  // links
+  (function drawLinks(n){ kids(n).forEach(c=>{ const p=`M ${n.x+nodeW(n)} ${n.y} C ${n.x+nodeW(n)+40} ${n.y}, ${c.x-40} ${c.y}, ${c.x} ${c.y}`; svg.appendChild(el("path",{d:p,class:"link",stroke:c.color||"#999"})); drawLinks(c); }); })(DATA);
+  // nodes
+  (function drawNodes(n){
+    const g = el("g",{class:"node"});
+    const w = nodeW(n), h = n.leaf?24:28;
+    const r = el("rect",{x:n.x, y:n.y-h/2, width:w, height:h, rx:8, fill:n.depth===0?"#2b2b2b":(n.leaf?"#fff":shade(n.color)), stroke:n.color||"#2b2b2b"});
+    g.appendChild(r);
+    const lines = n.name.split("\n");
+    lines.forEach((ln,i)=>{ const t=el("text",{x:n.x+w/2, y:n.y+(i-(lines.length-1)/2)*15+4.5, "text-anchor":"middle", fill:n.depth===0?"#fff":(n.leaf?"#2b2b2b":"#fff"), "font-weight":n.leaf?"400":"600"}); t.textContent=ln; g.appendChild(t); });
+    if((n.children||[]).length){
+      const c = el("circle",{cx:n.x+w-2, cy:n.y, r:9, fill:n.color||"#2b2b2b", stroke:"#fff","stroke-width":2});
+      const t = el("text",{x:n.x+w-2, y:n.y+4, "text-anchor":"middle", class:"toggle"}); t.textContent = n.collapsed?"+":"–";
+      g.appendChild(c); g.appendChild(t);
+    }
+    g.addEventListener("click",()=>{ if((n.children||[]).length){ n.collapsed=!n.collapsed; render(); } });
+    svg.appendChild(g);
+    kids(n).forEach(drawNodes);
+  })(DATA);
+}
+function nodeW(n){ return Math.ceil(textW(n.name)) + (n.leaf?28:44); }
+function shade(hex){ // lighten for branch label bg -> use color at 85% with white text; simpler: return color
+  return hex;
+}
+document.getElementById("expandAll").onclick=()=>{ (function e(n){ n.collapsed=false; (n.children||[]).forEach(e); })(DATA); render(); };
+document.getElementById("collapseAll").onclick=()=>{ (function e(n,d){ n.collapsed = d>=2 && (n.children||[]).length>0; (n.children||[]).forEach(c=>e(c,d+1)); })(DATA,0); render(); };
+render();
+</script>
+</body>
+</html>
